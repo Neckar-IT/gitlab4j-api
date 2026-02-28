@@ -41,35 +41,7 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.Response;
 
-import org.gitlab4j.api.models.AccessLevel;
-import org.gitlab4j.api.models.AccessRequest;
-import org.gitlab4j.api.models.ApprovalRule;
-import org.gitlab4j.api.models.ApprovalRuleParams;
-import org.gitlab4j.api.models.AuditEvent;
-import org.gitlab4j.api.models.Badge;
-import org.gitlab4j.api.models.CustomAttribute;
-import org.gitlab4j.api.models.Event;
-import org.gitlab4j.api.models.FileUpload;
-import org.gitlab4j.api.models.Issue;
-import org.gitlab4j.api.models.Iteration;
-import org.gitlab4j.api.models.IterationFilter;
-import org.gitlab4j.api.models.Member;
-import org.gitlab4j.api.models.Namespace;
-import org.gitlab4j.api.models.Project;
-import org.gitlab4j.api.models.ProjectAccessToken;
-import org.gitlab4j.api.models.ProjectApprovalsConfig;
-import org.gitlab4j.api.models.ProjectFetches;
-import org.gitlab4j.api.models.ProjectFilter;
-import org.gitlab4j.api.models.ProjectGroup;
-import org.gitlab4j.api.models.ProjectGroupsFilter;
-import org.gitlab4j.api.models.ProjectHook;
-import org.gitlab4j.api.models.ProjectUser;
-import org.gitlab4j.api.models.PushRules;
-import org.gitlab4j.api.models.RemoteMirror;
-import org.gitlab4j.api.models.Snippet;
-import org.gitlab4j.api.models.UploadedFile;
-import org.gitlab4j.api.models.Variable;
-import org.gitlab4j.api.models.Visibility;
+import org.gitlab4j.api.models.*;
 import org.gitlab4j.models.Constants;
 import org.gitlab4j.models.utils.ISO8601;
 
@@ -1074,6 +1046,7 @@ public class ProjectApi extends AbstractApi implements Constants {
      * ciConfigPath (optional) - Set path to CI configuration file
      * autoDevopsEnabled (optional) - Enable Auto DevOps for this project
      * squashOption (optional) - set squash option for merge requests
+     * ciDeletePipelinesInSeconds (optional) - set the automatic pipeline cleanup time in seconds
      *
      * @param project the Project instance with the configuration for the new project
      * @param importUrl the URL to import the repository from
@@ -1125,6 +1098,7 @@ public class ProjectApi extends AbstractApi implements Constants {
                 .withParam("build_git_strategy", project.getBuildGitStrategy())
                 .withParam("build_coverage_regex", project.getBuildCoverageRegex())
                 .withParam("ci_config_path", project.getCiConfigPath())
+                .withParam("ci_delete_pipelines_in_seconds", project.getCiDeletePipelinesInSeconds())
                 .withParam("suggestion_commit_message", project.getSuggestionCommitMessage())
                 .withParam("remove_source_branch_after_merge", project.getRemoveSourceBranchAfterMerge())
                 .withParam("auto_devops_enabled", project.getAutoDevopsEnabled())
@@ -1445,6 +1419,7 @@ public class ProjectApi extends AbstractApi implements Constants {
      * ciConfigPath (optional) - Set path to CI configuration file
      * ciForwardDeploymentEnabled (optional) - When a new deployment job starts, skip older deployment jobs that are still pending
      * squashOption (optional) - set squash option for merge requests
+     * ciDeletePipelinesInSeconds (optional) - set the automatic pipeline cleanup time in seconds
      *
      * NOTE: The following parameters specified by the GitLab API edit project are not supported:
      *     import_url
@@ -1481,6 +1456,9 @@ public class ProjectApi extends AbstractApi implements Constants {
                 .withParam("public_jobs", project.getPublicJobs())
                 .withParam("only_allow_merge_if_pipeline_succeeds", project.getOnlyAllowMergeIfPipelineSucceeds())
                 .withParam(
+                        "ci_pipeline_variables_minimum_override_role",
+                        project.getCiPipelineVariablesMinimumOverrideRole())
+                .withParam(
                         "only_allow_merge_if_all_discussions_are_resolved",
                         project.getOnlyAllowMergeIfAllDiscussionsAreResolved())
                 .withParam("lfs_enabled", project.getLfsEnabled())
@@ -1494,6 +1472,7 @@ public class ProjectApi extends AbstractApi implements Constants {
                 .withParam("build_coverage_regex", project.getBuildCoverageRegex())
                 .withParam("ci_config_path", project.getCiConfigPath())
                 .withParam("ci_forward_deployment_enabled", project.getCiForwardDeploymentEnabled())
+                .withParam("ci_delete_pipelines_in_seconds", project.getCiDeletePipelinesInSeconds())
                 .withParam("merge_method", project.getMergeMethod())
                 .withParam("suggestion_commit_message", project.getSuggestionCommitMessage())
                 .withParam("remove_source_branch_after_merge", project.getRemoveSourceBranchAfterMerge())
@@ -1509,6 +1488,7 @@ public class ProjectApi extends AbstractApi implements Constants {
                         project.getWarnAboutPotentiallyUnwantedCharacters())
                 .withParam("mirror_trigger_builds", project.getMirrorTriggerBuilds())
                 .withParam("auto_cancel_pending_pipelines", project.getAutoCancelPendingPipelines())
+                .withParam("autoclose_referenced_issues", project.getAutocloseReferencedIssues())
                 .withParam("repository_object_format", project.getRepositoryObjectFormat())
                 .withParam(
                         "only_allow_merge_if_all_status_checks_passed",
@@ -3423,14 +3403,14 @@ public class ProjectApi extends AbstractApi implements Constants {
      * <pre><code>GET /projects/:id/audit_events</code></pre>
      *
      * @param projectIdOrPath the project ID, path of the project, or a project instance holding the project ID or path
-     * @param created_after Project audit events created on or after the given time.
-     * @param created_before Project audit events created on or before the given time.
+     * @param createdAfter Project audit events created on or after the given time.
+     * @param createdBefore Project audit events created on or before the given time.
      * @return a List of project Audit events
      * @throws GitLabApiException if any exception occurs
      */
-    public List<AuditEvent> getAuditEvents(Object projectIdOrPath, Date created_after, Date created_before)
+    public List<AuditEvent> getAuditEvents(Object projectIdOrPath, Date createdAfter, Date createdBefore)
             throws GitLabApiException {
-        return (getAuditEvents(projectIdOrPath, created_after, created_before, getDefaultPerPage())
+        return (getAuditEvents(projectIdOrPath, createdAfter, createdBefore, getDefaultPerPage())
                 .all());
     }
 
@@ -3440,18 +3420,17 @@ public class ProjectApi extends AbstractApi implements Constants {
      * <pre><code>GET /projects/:id/audit_events</code></pre>
      *
      * @param projectIdOrPath the project ID, path of the project, or a Project instance holding the project ID or path
-     * @param created_after Project audit events created on or after the given time.
-     * @param created_before Project audit events created on or before the given time.
+     * @param createdAfter Project audit events created on or after the given time.
+     * @param createdBefore Project audit events created on or before the given time.
      * @param itemsPerPage the number of Audit Event instances that will be fetched per page
      * @return a Pager of project Audit events
      * @throws GitLabApiException if any exception occurs
      */
     public Pager<AuditEvent> getAuditEvents(
-            Object projectIdOrPath, Date created_after, Date created_before, int itemsPerPage)
-            throws GitLabApiException {
+            Object projectIdOrPath, Date createdAfter, Date createdBefore, int itemsPerPage) throws GitLabApiException {
         Form form = new GitLabApiForm()
-                .withParam("created_before", ISO8601.toString(created_before, false))
-                .withParam("created_after", ISO8601.toString(created_after, false));
+                .withParam("created_after", ISO8601.toString(createdAfter, false))
+                .withParam("created_before", ISO8601.toString(createdBefore, false));
         return (new Pager<AuditEvent>(
                 this,
                 AuditEvent.class,
@@ -3468,14 +3447,14 @@ public class ProjectApi extends AbstractApi implements Constants {
      * <pre><code>GET /projects/:id/audit_events</code></pre>
      *
      * @param projectIdOrPath the project ID, path of the project, or a Project instance holding the project ID or path
-     * @param created_after Project audit events created on or after the given time.
-     * @param created_before Project audit events created on or before the given time.
+     * @param createdAfter Project audit events created on or after the given time.
+     * @param createdBefore Project audit events created on or before the given time.
      * @return a Stream of project Audit events
      * @throws GitLabApiException if any exception occurs
      */
-    public Stream<AuditEvent> getAuditEventsStream(Object projectIdOrPath, Date created_after, Date created_before)
+    public Stream<AuditEvent> getAuditEventsStream(Object projectIdOrPath, Date createdAfter, Date createdBefore)
             throws GitLabApiException {
-        return (getAuditEvents(projectIdOrPath, created_after, created_before, getDefaultPerPage()).stream());
+        return (getAuditEvents(projectIdOrPath, createdAfter, createdBefore, getDefaultPerPage()).stream());
     }
 
     /**
@@ -3973,6 +3952,44 @@ public class ProjectApi extends AbstractApi implements Constants {
     }
 
     /**
+     * Gets a pager of a project’s badges and its group badges.
+     *
+     * <pre><code>GitLab Endpoint: GET /projects/:id/badges</code></pre>
+     *
+     * @param projectIdOrPath the project in the form of an Long(ID), String(path), or Project instance
+     * @param itemsPerPage the number of Badge instances that will be fetched per page
+     * @return a pager of Badge instances for the specified project
+     * @throws GitLabApiException if any exception occurs
+     */
+    public Pager<Badge> getBadges(Object projectIdOrPath, int itemsPerPage) throws GitLabApiException {
+        return getBadges(projectIdOrPath, null, itemsPerPage);
+    }
+
+    /**
+     * Gets a pager of a project’s badges and its group badges, case-sensitively filtered on bagdeName if non-null.
+     *
+     * <pre><code>GitLab Endpoint: GET /projects/:id/badges?name=:name</code></pre>
+     *
+     * @param projectIdOrPath the project in the form of a Long(ID), String(path), or Project instance
+     * @param bagdeName The name to filter on (case-sensitive), ignored if null.
+     * @param itemsPerPage the number of Badge instances that will be fetched per page
+     * @return a pager of the GitLab item, case insensitively filtered on name.
+     * @throws GitLabApiException If any problem is encountered
+     */
+    public Pager<Badge> getBadges(Object projectIdOrPath, String bagdeName, int itemsPerPage)
+            throws GitLabApiException {
+        Form queryParam = new GitLabApiForm().withParam("name", bagdeName);
+        return new Pager<Badge>(
+                this,
+                Badge.class,
+                itemsPerPage,
+                queryParam.asMap(),
+                "projects",
+                getProjectIdOrPath(projectIdOrPath),
+                "badges");
+    }
+
+    /**
      * Gets a badge of a project.
      *
      * <pre><code>GitLab Endpoint: GET /projects/:id/badges/:badge_id</code></pre>
@@ -4353,8 +4370,23 @@ public class ProjectApi extends AbstractApi implements Constants {
      * @param projectIdOrPath the project in the form of an Long(ID), String(path), or Project instance, required
      * @param key the key for the custom attribute, required
      * @return an Optional instance with the value for a single custom attribute for the specified project
+     * @deprecated Use {@link #getOptionalCustomAttribute(Object, String)} instead
      */
+    @Deprecated
     public Optional<CustomAttribute> geOptionalCustomAttribute(final Object projectIdOrPath, final String key) {
+        return getOptionalCustomAttribute(projectIdOrPath, key);
+    }
+
+    /**
+     * Get an Optional instance with the value for a single custom attribute for the specified project.
+     *
+     * <pre><code>GitLab Endpoint: GET /projects/:id/custom_attributes/:key</code></pre>
+     *
+     * @param projectIdOrPath the project in the form of an Long(ID), String(path), or Project instance, required
+     * @param key the key for the custom attribute, required
+     * @return an Optional instance with the value for a single custom attribute for the specified project
+     */
+    public Optional<CustomAttribute> getOptionalCustomAttribute(final Object projectIdOrPath, final String key) {
         try {
             return (Optional.ofNullable(getCustomAttribute(projectIdOrPath, key)));
         } catch (GitLabApiException glae) {
@@ -4411,6 +4443,41 @@ public class ProjectApi extends AbstractApi implements Constants {
         }
 
         delete(Response.Status.OK, null, "projects", getProjectIdOrPath(projectIdOrPath), "custom_attributes", key);
+    }
+
+    /**
+     * Get all pull mirrors for the specified project.
+     *
+     * <pre><code>GitLab Endpoint: GET /projects/:id/mirror/pull</code></pre>
+     *
+     * @param projectIdOrPath the project in the form of a Long(ID), String(path), or Project instance
+     * @return a list of project's pull mirrors
+     * @throws GitLabApiException if any exception occurs
+     */
+    public List<PullMirror> getPullMirrors(final Object projectIdOrPath) throws GitLabApiException {
+        return (getPullMirrors(projectIdOrPath, getDefaultPerPage()).all());
+    }
+
+    /**
+     * Get a Pager of pull mirrors for the specified project.
+     *
+     * <pre><code>GitLab Endpoint: GET /projects/:id/mirror/pull</code></pre>
+     *
+     * @param projectIdOrPath the project in the form of an Long(ID), String(path), or Project instance
+     * @param itemsPerPage the number of items per page
+     * @return a Pager of project's pull mirrors
+     * @throws GitLabApiException if any exception occurs
+     */
+    public Pager<PullMirror> getPullMirrors(final Object projectIdOrPath, int itemsPerPage) throws GitLabApiException {
+        return new Pager<PullMirror>(
+                this,
+                PullMirror.class,
+                itemsPerPage,
+                null,
+                "projects",
+                getProjectIdOrPath(projectIdOrPath),
+                "mirror",
+                "pull");
     }
 
     /**
@@ -4528,6 +4595,8 @@ public class ProjectApi extends AbstractApi implements Constants {
 
     /**
      * Lists the projects access tokens for the project.
+     *
+     * <pre><code>GitLab Endpoint: GET /projects/:id/access_tokens</code></pre>
      *
      * @param projectIdOrPath the project in the form of a Long(ID), String(path), or Project instance
      * @return the list of ProjectAccessTokens. The token and lastUsedAt attribute of each object is unset.
@@ -4680,5 +4749,51 @@ public class ProjectApi extends AbstractApi implements Constants {
         Response response =
                 get(Response.Status.OK, queryParams, "projects", getProjectIdOrPath(projectIdOrPath), "iterations");
         return (response.readEntity(new GenericType<List<Iteration>>() {}));
+    }
+
+    /**
+     * Get project templates of the specified type.
+     *
+     * <pre><code>GitLab Endpoint: GET /projects/:id/templates/:type</code></pre>
+     *
+     * @param projectIdOrPath the project in the form of a Long(ID), String(path), or Project instance
+     * @param type type of the template. Accepted values are: dockerfiles, gitignores, gitlab_ci_ymls, licenses, issues, or merge_requests.
+     * @return the list of project templates
+     * @throws GitLabApiException if any exception occurs
+     */
+    public List<ProjectTemplate> getProjectTemplates(Object projectIdOrPath, ProjectTemplateType type)
+            throws GitLabApiException {
+        Response response = get(
+                Response.Status.OK,
+                null,
+                "projects",
+                getProjectIdOrPath(projectIdOrPath),
+                "templates",
+                type.toString());
+        return (response.readEntity(new GenericType<List<ProjectTemplate>>() {}));
+    }
+
+    /**
+     * Get a specific project template of the specified type.
+     *
+     * <pre><code>GitLab Endpoint: GET /projects/:id/templates/:type/:name</code></pre>
+     *
+     * @param projectIdOrPath the project in the form of a Long(ID), String(path), or Project instance
+     * @param type type of the template. Accepted values are: dockerfiles, gitignores, gitlab_ci_ymls, licenses, issues, or merge_requests.
+     * @param templateName Key of the template
+     * @return the project template detail
+     * @throws GitLabApiException if any exception occurs
+     */
+    public ProjectTemplateDetail getProjectTemplate(
+            Object projectIdOrPath, ProjectTemplateType type, String templateName) throws GitLabApiException {
+        Response response = get(
+                Response.Status.OK,
+                null,
+                "projects",
+                getProjectIdOrPath(projectIdOrPath),
+                "templates",
+                type.toString(),
+                templateName);
+        return (response.readEntity(ProjectTemplateDetail.class));
     }
 }
